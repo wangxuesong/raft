@@ -40,7 +40,7 @@ static void forkServer(const char *topLevelDir, unsigned i, pid_t *pid)
     if (*pid == 0) {
         char *dir = malloc(strlen(topLevelDir) + strlen("/D") + 1);
         char *id = malloc(N_SERVERS / 10 + 2);
-        char *argv[] = {"./example/server", dir, id, NULL};
+        char *argv[] = {"./server", dir, id, NULL};
         char *envp[] = {NULL};
         int rv;
         sprintf(dir, "%s/%u", topLevelDir, i + 1);
@@ -49,7 +49,7 @@ static void forkServer(const char *topLevelDir, unsigned i, pid_t *pid)
             abort();
         }
         sprintf(id, "%u", i + 1);
-        execve("./example/server", argv, envp);
+        execve("./server", argv, envp);
     }
 }
 
