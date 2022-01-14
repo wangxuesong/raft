@@ -319,7 +319,7 @@ static int ServerStart(struct Server *s)
         Logf(s->id, "raft_start(): %s", raft_errmsg(&s->raft));
         goto err;
     }
-    rv = uv_timer_start(&s->timer, serverTimerCb, 0, 125);
+    rv = uv_timer_start(&s->timer, serverTimerCb, 0, APPLY_RATE);
     if (rv != 0) {
         Logf(s->id, "uv_timer_start(): %s", uv_strerror(rv));
         goto err;
