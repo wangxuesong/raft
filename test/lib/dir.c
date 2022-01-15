@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#define __USE_XOPEN_EXTENDED
 #include <ftw.h>
 #include <stdio.h>
 #include <stdlib.h>

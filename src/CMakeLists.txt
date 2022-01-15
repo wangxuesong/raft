@@ -7,3 +7,5 @@ add_compile_definitions(HAVE_LINUX_AIO_ABI_H)
 add_library(craft_static STATIC ${src_files})
 # add shared library
 add_library(craft SHARED ${src_files})
+
+set(raft_sources ${src_files} ${include_files} PARENT_SCOPE)
