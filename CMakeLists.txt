@@ -4,7 +4,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 project(craft)
 
-set(cmake_find_library_suffixes .a)
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".so")
 find_package(LibUV REQUIRED)
 if (LibUV_FOUND)
     set(UV_ENABLED True)
