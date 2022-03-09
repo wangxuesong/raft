@@ -74,7 +74,7 @@ static void uvAliveSegmentWriterCloseCb(struct UvWriter *writer)
     struct uvAliveSegment *segment = writer->data;
     struct uv *uv = segment->uv;
     uvSegmentBufferClose(&segment->pending);
-    HeapFree(segment);
+    RaftHeapFree(segment);
     uvMaybeFireCloseCb(uv);
 }
 
@@ -120,7 +120,7 @@ static void uvAppendFinishRequestsInQueue(struct uv *uv, queue *q, int status)
         append = QUEUE_DATA(head, struct uvAppend, queue);
         QUEUE_REMOVE(head);
         req = append->req;
-        HeapFree(append);
+        RaftHeapFree(append);
         req->cb(req, status);
     }
 }
@@ -270,11 +270,14 @@ out:
         if (rv != 0) {
             uv->errored = true;
         }
-    } else if (s->finalize) {
-        /* If there are no more append_pending_reqs, this segment
-         * must be finalized here in case we don't receive AppendEntries
-         * RPCs anymore (could happen during a Snapshot install, causing
-         * the BarrierCb to never fire) */
+    } else if (s->finalize
+               && (s->pending_last_index == s->last_index)
+               && !s->writer.closing) {
+        /* If there are no more append_pending_reqs or write requests in flight,
+         * this segment must be finalized here in case we don't receive
+         * AppendEntries RPCs anymore (could happen during a Snapshot install,
+         * causing the BarrierCb to never fire), but check that the callbacks that
+         * fired after completion of this write didn't already close the segment. */
         uvAliveSegmentFinalize(s);
     }
 }
@@ -326,9 +329,9 @@ start:
         return 0;
     }
 
-    /* If there's a barrier in progress, and it's not waiting for this segment
+    /* If there's a blocking barrier in progress, and it's not waiting for this segment
      * to be finalized, let's wait. */
-    if (uv->barrier != NULL && segment->barrier != uv->barrier) {
+    if (uv->barrier != NULL && segment->barrier != uv->barrier && uv->barrier->blocking) {
         return 0;
     }
 
@@ -428,7 +431,7 @@ static void uvAliveSegmentPrepareCb(struct uvPrepare *req, int status)
         QUEUE_REMOVE(&segment->queue);
         assert(status == RAFT_CANCELED); /* UvPrepare cancels pending reqs */
         uvSegmentBufferClose(&segment->pending);
-        HeapFree(segment);
+        RaftHeapFree(segment);
         return;
     }
 
@@ -458,7 +461,7 @@ static void uvAliveSegmentPrepareCb(struct uvPrepare *req, int status)
 
 err:
     QUEUE_REMOVE(&segment->queue);
-    HeapFree(segment);
+    RaftHeapFree(segment);
     uv->errored = true;
     uvAppendFinishPendingRequests(uv, rv);
 }
@@ -492,7 +495,7 @@ static int uvAppendPushAliveSegment(struct uv *uv)
     uvCounter counter;
     int rv;
 
-    segment = HeapMalloc(sizeof *segment);
+    segment = RaftHeapMalloc(sizeof *segment);
     if (segment == NULL) {
         rv = RAFT_NOMEM;
         goto err;
@@ -522,7 +525,7 @@ err_after_prepare:
     UvFinalize(uv, counter, 0, 0, 0);
 err_after_alloc:
     QUEUE_REMOVE(&segment->queue);
-    HeapFree(segment);
+    RaftHeapFree(segment);
 err:
     assert(rv != 0);
     return rv;
@@ -632,7 +635,7 @@ int UvAppend(struct raft_io *io,
     uv = io->impl;
     assert(!uv->closing);
 
-    append = HeapMalloc(sizeof *append);
+    append = RaftHeapMalloc(sizeof *append);
     if (append == NULL) {
         rv = RAFT_NOMEM;
         goto err;
@@ -659,7 +662,7 @@ int UvAppend(struct raft_io *io,
     return 0;
 
 err_after_req_alloc:
-    HeapFree(append);
+    RaftHeapFree(append);
 err:
     assert(rv != 0);
     return rv;
@@ -773,7 +776,6 @@ int UvBarrier(struct uv *uv,
 
 void UvUnblock(struct uv *uv)
 {
-    assert(uv->barrier != NULL);
     uv->barrier = NULL;
     if (uv->closing) {
         uvMaybeFireCloseCb(uv);
